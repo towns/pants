@@ -244,9 +244,18 @@ class IdeaGen(IdeGen):
     if not os.path.exists(outdir):
       os.makedirs(outdir)
 
+    def is_fs_root(folder):
+      return folder == os.path.dirname(folder)
+
+    def find_git_root(folder):
+      if is_fs_root(folder):
+        return None
+      return folder if ".git" in os.listdir(folder) else find_git_root(os.path.dirname(folder))
+
     configured_project = TemplateData(
       root_dir=get_buildroot(),
       outdir=outdir,
+      git_root=find_git_root(get_buildroot()),
       modules=[ configured_module ],
       java=TemplateData(
         encoding=self.java_encoding,
