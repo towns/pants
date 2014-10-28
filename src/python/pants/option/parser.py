@@ -191,9 +191,17 @@ class Parser(object):
 
   def _validate(self, args, kwargs):
     """Ensure that the caller isn't trying to use unsupported argparse features."""
+    for arg in args:
+      if not arg.startswith('-'):
+        raise RegistrationError('Option {0} in scope {1} must begin '
+                                'with a dash.'.format(arg, self._scope))
+      if not arg.startswith('--') and len(arg) > 2:
+        raise RegistrationError('Multicharacter option {0} in scope {1} must begin '
+                                'with a double-dash'.format(arg, self._scope))
     for k in ['nargs', 'required']:
       if k in kwargs:
-        raise RegistrationError('%s unsupported in registration of option %s.' % (k, args))
+        raise RegistrationError('{0} unsupported in registration of option {1} in '
+                                'scope {2}.'.format(k, args, self._scope))
 
   def _set_dest(self, args, kwargs, legacy_dest):
     """Maps the externally-used dest to a scoped one only seen internally.
@@ -250,10 +258,15 @@ class Parser(object):
     env_val_str = self._env.get(env_var) if self._env else None
 
     env_val = None if env_val_str is None else value_type(env_val_str)
-    config_val_str = self._config.get(config_section, dest, default=None) if self._config else None
-    config_val = None if config_val_str is None else value_type(config_val_str)
+    if kwargs.get('action') == 'append':
+      config_val_strs = self._config.getlist(config_section, dest, default=[]) if self._config else []
+      config_val = [value_type(config_val_str) for config_val_str in config_val_strs]
+      default = []
+    else:
+      config_val_str = self._config.get(config_section, dest, default=None) if self._config else None
+      config_val = None if config_val_str is None else value_type(config_val_str)
+      default = None
     hardcoded_val = kwargs.get('default')
-    default = [] if kwargs.get('action') == 'append' else None
     return RankedValue.choose(None, env_val, config_val, hardcoded_val, default)
 
   def _create_inverse_kwargs(self, kwargs):

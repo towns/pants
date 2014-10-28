@@ -9,7 +9,7 @@ from abc import abstractproperty
 import os
 
 from pants.backend.jvm.tasks.jvm_tool_task_mixin import JvmToolTaskMixin
-from pants.backend.core.tasks.task import QuietTaskMixin, Task, TaskBase
+from pants.backend.core.tasks.task import Task, TaskBase
 from pants.base.exceptions import TaskError
 from pants.java import util
 from pants.java.distribution.distribution import Distribution
@@ -105,15 +105,14 @@ class NailgunTask(NailgunTaskBase, Task):
   pass
 
 
-class NailgunKillall(Task, QuietTaskMixin):
+class NailgunKillall(Task):
   """A task to manually kill nailguns."""
   @classmethod
-  def setup_parser(cls, option_group, args, mkflag):
-    super(NailgunKillall, cls).setup_parser(option_group, args, mkflag)
-    option_group.add_option(mkflag("everywhere"), dest="ng_killall_everywhere",
-                            default=False, action="store_true",
-                            help="[%default] Kill all nailguns servers launched by pants for "
-                                 "all workspaces on the system.")
+  def register_options(cls, register):
+    super(NailgunKillall, cls).register_options(register)
+    register('--everywhere', default=False, action='store_true',
+             legacy='ng_killall_everywhere',
+             help='Kill all nailguns servers launched by pants for all workspaces on the system.')
 
   def execute(self):
-    NailgunTaskBase.killall(everywhere=self.context.options.ng_killall_everywhere)
+    NailgunTaskBase.killall(everywhere=self.get_options().everywhere)
