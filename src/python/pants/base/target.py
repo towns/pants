@@ -167,7 +167,7 @@ class Target(AbstractTarget):
     ids = list(ids)  # We can't len a generator.
     return ids[0] if len(ids) == 1 else cls.combine_ids(ids)
 
-  def __init__(self, name, address, build_graph, payload=None, exclusives=None):
+  def __init__(self, name, address, build_graph, payload=None, exclusives=None, tags=None):
     """
     :param string name: The name of this target, which combined with this
       build file defines the target address.
@@ -180,12 +180,17 @@ class Target(AbstractTarget):
     :param exclusives: An optional map of exclusives tags.
        `Keeps incompatible changes apart
        <build_files.html#howto-check-exclusives>`_.
+    :param iterable<string> tags: Arbitrary string tags that describe this target. Usable
+        by downstream/custom tasks for reasoning about build graph. NOT included in payloads
+        and thus not used in fingerprinting, thus not suitable for anything that affects how
+        a particular target is built.
     """
     # dependencies is listed above; implementation hides in TargetAddressable
     self.payload = payload or Payload()
     self.payload.freeze()
     self.name = name
     self.address = address
+    self._tags = set(tags or [])
     self._build_graph = build_graph
     self.description = None
     self.labels = set()
@@ -199,6 +204,10 @@ class Target(AbstractTarget):
     self._cached_transitive_fingerprint_map = {}
 
   @property
+  def tags(self):
+    return self._tags
+
+  @property
   def num_chunking_units(self):
     return max(1, len(self.sources_relative_to_buildroot()))
 
@@ -207,6 +216,12 @@ class Target(AbstractTarget):
                        raise_type=lambda msg: TargetDefinitionException(self, msg))
 
   def compute_invalidation_hash(self, fingerprint_strategy=None):
+    """
+     :param FingerprintStrategy fingerprint_strategy: optional fingerprint strategy to use to compute
+    the fingerprint of a target
+    :return: a fingerprint representing this target (no dependencies)
+    :rtype: string
+    """
     fingerprint_strategy = fingerprint_strategy or DefaultFingerprintStrategy()
     return fingerprint_strategy.fingerprint_target(self)
 
@@ -225,6 +240,12 @@ class Target(AbstractTarget):
     self.mark_extra_invalidation_hash_dirty()
 
   def transitive_invalidation_hash(self, fingerprint_strategy=None):
+    """
+    :param FingerprintStrategy fingerprint_strategy: optional fingerprint strategy to use to compute
+    the fingerprint of a target
+    :return: a fingerprint representing this target and all of its dependencies
+    :rtype: string
+    """
     fingerprint_strategy = fingerprint_strategy or DefaultFingerprintStrategy()
     if fingerprint_strategy not in self._cached_transitive_fingerprint_map:
       hasher = sha1()
@@ -252,6 +273,11 @@ class Target(AbstractTarget):
     self._build_graph.walk_transitive_dependee_graph([self.address], work=invalidate_dependee)
 
   def has_sources(self, extension=''):
+    """
+    :param string extension: suffix of filenames to test for
+    :return: True if the target contains sources that match the optional extension suffix
+    :rtype: bool
+    """
     sources_field = self.payload.get_field('sources')
     if sources_field:
       return sources_field.has_sources(extension)
@@ -301,24 +327,44 @@ class Target(AbstractTarget):
 
   @property
   def traversable_specs(self):
+    """
+    :return: specs referenced by this target to be injected into the build graph
+    :rtype: list of strings
+    """
     return []
 
   @property
   def traversable_dependency_specs(self):
+    """
+    :return: specs representing dependencies of this target that will be injected to the build
+    graph and linked in the graph as dependencies of this target
+    :rtype: list of strings
+    """
     return []
 
   @property
   def dependencies(self):
+    """
+    :return: targets that this target depends on
+    :rtype: list of Target
+    """
     return [self._build_graph.get_target(dep_address)
             for dep_address in self._build_graph.dependencies_of(self.address)]
 
   @property
   def dependents(self):
+    """
+    :return: targets that depend on this target
+    :rtype: list of Target
+    """
     return [self._build_graph.get_target(dep_address)
             for dep_address in self._build_graph.dependents_of(self.address)]
 
   @property
   def is_synthetic(self):
+    """
+    :return: True if this target did not originate from a BUILD file.
+    """
     return self.address.is_synthetic
 
   @property
@@ -376,7 +422,7 @@ class Target(AbstractTarget):
     return self.id
 
   def walk(self, work, predicate=None):
-    """Walk of this target's dependency graph, DFS inorder traversal, visiting each node exactly
+    """Walk of this target's dependency graph, DFS preorder traversal, visiting each node exactly
     once.
 
     If a predicate is supplied it will be used to test each target before handing the target to
@@ -395,7 +441,7 @@ class Target(AbstractTarget):
     self._build_graph.walk_transitive_dependency_graph([self.address], work, predicate)
 
   def closure(self):
-    """Returns this target's transitive dependencies, in DFS inorder traversal."""
+    """Returns this target's transitive dependencies, in DFS preorder traversal."""
     return self._build_graph.transitive_subgraph_of_addresses([self.address])
 
   @manual.builddict()
