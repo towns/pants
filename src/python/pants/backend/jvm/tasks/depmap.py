@@ -101,7 +101,7 @@ class Depmap(ConsoleTask):
     self.separator = self.get_options().separator
     self.project_info = self.get_options().project_info
     self.format = self.get_options().project_info_formatted
-    self.inverse_target_aliases = None
+    self.target_aliases_map = None
 
   def console_output(self, targets):
     if len(self.context.target_roots) == 0:
