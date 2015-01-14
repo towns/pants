@@ -55,6 +55,7 @@ jar_library(name = 'zinc',
               jar(org = 'com.typesafe.zinc', name = 'zinc', rev = '0.3.2-M1')
                 .exclude(org = 'com.martiansoftware', name = 'nailgun-server')
                 .exclude(org = 'org.ensime', name = 'ensime-sbt-cmd')
+                .exclude(org = 'org.scala-lang', name = 'scala-compiler')
             ])
 
 jar_library(name = 'scala-compiler-2.9.3',
